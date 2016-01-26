@@ -2,6 +2,17 @@ require 'pry'
 require 'ostruct'
 require 'table_print'
 require 'thor'
+
+module Kernel
+  def try method,str
+    if self.is_a? Date
+      send(method,str)
+    else
+      self
+    end
+  end
+end
+
 class Osho < Thor
   desc "parse","parse discources"
   def parse
@@ -36,24 +47,24 @@ class Osho < Thor
       content=book.content.split("\n").delete_if {|d| d=~/^\s*$/}
       content.each_with_index do |l,index|
         if l=~/^\s*Length:.*$/ && index < 20
-          puts "#{content[index-15].chomp} --- #{index-15}"
-          puts "#{content[index-14].chomp} --- #{index-14}"
-          puts content[index-13]
-          puts content[index-12]
-          puts content[index-11]
-          puts content[index-10]
-          puts content[index-9]
-          puts content[index-8]
-          puts content[index-7]
-          puts content[index-6]
-          puts content[index-5]
-          puts content[index-4]
-          puts content[index-3]
-          puts content[index-2]
-          puts content[index-1]
-          puts content[index]
-          puts "\n"
-          if index-15==-2
+          #          puts "#{content[index-15].chomp} --- #{index-15}"
+          #          puts "#{content[index-14].chomp} --- #{index-14}"
+          #          puts content[index-13]
+          #          puts content[index-12]
+          #          puts content[index-11]
+          #          puts content[index-10]
+          #          puts content[index-9]
+          #          puts content[index-8]
+          #          puts content[index-7]
+          #          puts content[index-6]
+          #          puts content[index-5]
+          #          puts content[index-4]
+          #          puts content[index-3]
+          #          puts content[index-2]
+          #          puts content[index-1]
+          #          puts content[index]
+          #          puts "\n"
+          if index==13
             book.book_title = content[index-14]
             #     summary missing
             book.discourses_dates = content[index-12]
@@ -62,7 +73,7 @@ class Osho < Thor
             book.discourspubdate = content[index-9]
             #     comments missing
           end
-          if index-15==-1
+          if index==14
             book.book_title = content[index-14]
             book.summary = content[index-13]
             book.discourses_dates = content[index-12]
@@ -71,7 +82,7 @@ class Osho < Thor
             book.discourspubdate = content[index-9]
             #     comments missing
           end
-          if index-15==0
+          if index==15
             book.book_title = content[index-15]
             book.summary = content[index-14]
             book.discourses_dates = content[index-13]
@@ -100,17 +111,18 @@ class Osho < Thor
           #          when x < -3
           #            sleep 100
           #          end
-          if l=~/^\s*Length:.*$/ && index > 20
-            #          puts content[index-8]
-            #          puts content[index-7]
-            #          puts content[index-6]
-            #          puts content[index-5]
-            #          puts content[index-4]
-            #          puts content[index-3]
-            #          puts content[index-2]
-            #          puts content[index-1]
-            #          puts ""
-          end
+        end
+        if l=~/^\s*Length:.*$/ && index > 20
+          puts content[index-8]
+          puts content[index-7]
+          puts content[index-6]
+          puts content[index-5]
+          puts content[index-4]
+          puts content[index-3]
+          puts content[index-2]
+          puts content[index-1]
+          puts content[index]
+          puts "\n\n"
         end
       end
     end
@@ -127,7 +139,7 @@ class Osho < Thor
       co=b.content.split("\n").delete_if {|d| d=~/^\s*$/}
       co.each_with_index do |l,index|
         if l=~ /#{something}/i
-          puts("#{b.name.purple} #{b.date.strftime("%B %d, %Y").gray}");
+          puts("#{b.name.purple} #{b.date.try(:strftime,"%B %d, %Y").gray}");
           trailing=""
           (1..context).reverse_each do |y|
             trailing+=co[index-y]
