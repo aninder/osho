@@ -1,4 +1,4 @@
 #!/usr/bin/env ruby
 require 'pry'
 load '~/.pryrc'
-load 'lib/osho.rb'
+load File.expand_path("../../lib/osho.rb",__FILE__)
