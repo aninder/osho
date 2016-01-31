@@ -18,7 +18,7 @@ class Osho < Thor
   def initialize(*args)
     super *args
     @log = Logger.new(STDOUT)
-    @log.level = Logger::DEBUG
+    @log.level = Logger::INFO
     @log.datetime_format = "%H:%M:%S"
   end
 
@@ -110,33 +110,46 @@ class Osho < Thor
   end
 
   desc "search SOMETHING CONTEXT", "free text search osho"
-  method_option :context, :type => :numeric, :desc => "num of trailing n succeding context", :default => 0, :aliases => "-C"
+  method_option :context, type: :numeric, desc:"num of trailing n succeding context", default:0, aliases:"-C"
+  method_option :sortasc, type: :boolean, default: false, desc:"sort result in order", aliases:"-a"
   def search(something)
     parse
+
+    @books_without_date, @books = @books.partition{|b|b.date.is_a?String}
+    options[:sortasc] ? @books.sort_by!{|b|b.date} : @books.sort_by!{|b|b.date}.reverse!
+    @books_without_date.sort_by! {|b| b.date}
+
+    @books_without_date.each do |b|
+      find_it(b,something)
+    end
     @books.each do |b|
-      co=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
-      co.each_with_index do |l, index|
-        if l=~ /#{something}/i
-          puts("#{b.name.purple} #{b.date.try(:strftime, "%B %d, %Y").gray}");
-          trailing=""
-          (1..options[:context]).reverse_each do |y|
-            trailing+=co[index-y]
-            trailing+="\n"
-          end
-          trailing=~/#{something}/i && next
-          succeeding="\n"
-          (1..options[:context]).each do |y|
-            succeeding+=co[index+y] if co[index+y]
-            succeeding+="\n"
-          end
-          puts("#{(trailing+(l)+succeeding).gsub(/#{something}/i, something.redish)}")
-          puts "\n"
-        end
-      end
+      find_it(b,something)
     end
   end
 
   private
+  def find_it(b,something)
+    co=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
+    co.each_with_index do |l, index|
+      if l=~ /#{something}/i
+        puts("#{b.name.purple} #{b.date.try(:strftime, "%B %d, %Y").gray}");
+        trailing=""
+        (1..options[:context]).reverse_each do |y|
+          trailing+=co[index-y]
+          trailing+="\n"
+        end
+        trailing=~/#{something}/i && next
+        succeeding="\n"
+        (1..options[:context]).each do |y|
+          succeeding+=co[index+y] if co[index+y]
+          succeeding+="\n"
+        end
+        puts("#{(trailing+(l)+succeeding).gsub(/(#{something})/i, '\1'.redish)}")
+        puts "\n"
+      end
+    end
+  end
+
   def log_chapter_parsing(content, index, header)
     if header
       @log.debug "#{content[index-15].chomp} --- #{(index-15).to_s.co_bg_red}"
@@ -157,7 +170,6 @@ class Osho < Thor
     @log.debug content[index-1]
     @log.debug content[index]
     @log.debug "\n"
-    sleep 1
   end
 end
 Osho.start(ARGV)

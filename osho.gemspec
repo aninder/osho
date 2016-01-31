@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "psych"
 
   spec.add_dependency "pry"
+  spec.add_dependency "pry-doc", "0.8.0"
   spec.add_dependency "thor", "0.19.1"
   spec.add_dependency "table_print"
 end
