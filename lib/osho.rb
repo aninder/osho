@@ -1,3 +1,4 @@
+# encoding: ISO-8859-1
 require 'pry'
 require 'ostruct'
 require 'table_print'
@@ -5,9 +6,9 @@ require 'thor'
 require 'logger'
 
 module Kernel
-  def try method,str
+  def try method, str
     if self.is_a? Date
-      send(method,str)
+      send(method, str)
     else
       self
     end
@@ -18,20 +19,21 @@ class Osho < Thor
   def initialize(*args)
     super *args
     @log = Logger.new(STDOUT)
-    @log.level = Logger::INFO
+    @log.level = Logger::DEBUG
     @log.datetime_format = "%H:%M:%S"
   end
 
-  desc "parse","parse discources"
-  def parse
+  desc "parse", "parse discources"
+
+  def parse2
     @books=[];
     path=File.expand_path("~/Documents/Osho/files")+"/"
     Dir["#{path}**/*.txt"].each do |f|
-      content=File.read(f).force_encoding("iso-8859-1")
+      content=File.read(f, external_encoding: "ISO8859-1")
       f = f.partition(path)[2]
       f.match(/^([0-9]\. )([a-zA-Z]+)\/(.*?)- (.*)/)
       match_date = $3
-      book = OpenStruct.new(category: $2,name: $4.sub(/\.txt/, ""),content: content)
+      book = OpenStruct.new(category: $2, name: $4.sub(/\.txt/, ""), content: content)
       begin
         if match_date=~/^#/
           date = match_date
@@ -49,17 +51,104 @@ class Osho < Thor
       @books << book
     end
     @books.each do |book|
-      content=book.content.split("\n").delete_if {|d| d=~/^\s*$/}
-      content.each_with_index do |l,index|
-        if (l=~/^\s*Length:.*$/) && (content[index-10].chomp =~ /Chapter[s]*$/ || content[index-11].chomp =~ /Chapter[s]*$/)
-          log_chapter_parsing(content, index, true)
-          if index==13
-            book.book_title = content[index-14]
+      if (!book.date.is_a?(Date) && !(book.date =~ /0000/))
+        @books_compilation ||= []
+        @books_compilation << book
+      elsif !book.date.is_a?(Date) && book.date =~ /0000/
+        @books_meta ||= []
+        @books_meta << book
+      else
+        @books_real ||= []
+        @books_real << book
+      end
+    end
+    @books_compilation.each do |book|
+      content=book.content.split(/\n|\. /).delete_if { |d| d=~/^\s*$/ }
+      content.each do |l|
+        if l =~ /^\*\*\*/
+          puts "skipping         #{l}"
+          next
+        else
+          _find(l, book)
+        end
+      end
+    end
+  end
+
+  desc "", ""
+  def _find(line, orgbook)
+    # binding.pry if line.include? "because your sister is pregnant"
+    line2=line.gsub(/([a-zA-Z])(?:\x85|\x97)([a-zA-Z])/, '\1 -- \2')
+    line2 = line2.split(/\.*\?+[\S]+[0-9]{1,2}$|\.$|\?|\?\.$/)[0]
+    @books_real.each do |b|
+      # puts "checking book --> #{b.name}"
+      content2=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
+      content2.each do |l|
+        if l.chomp.upcase.include? line2.chomp.upcase
+          puts "#{orgbook.name}  #{line.chomp.co_bg_brown.co_fg_blue} -- line_found in #{b.name.co_fg_magenta} matched line #{l.chomp.co_bg_gray.co_fg_blue}"
+          puts "===="
+          return
+        end
+      end
+    end
+    puts "line not found #{line.co_fg_red}"
+    puts "line not found #{line2.co_fg_red}"
+    puts "===="
+  end
+
+  desc "parse", "parse discources"
+
+  def parse
+    @books=[];
+    path=File.expand_path("~/Documents/Osho/files")+"/"
+    Dir["#{path}**/*.txt"].each do |f|
+      content=File.read(f).force_encoding("iso-8859-1")
+      f = f.partition(path)[2]
+      f.match(/^([0-9]\. )([a-zA-Z]+)\/(.*?)- (.*)/)
+      match_date = $3
+      book = OpenStruct.new(category: $2, name: $4.sub(/\.txt/, ""), content: content)
+      begin
+        if match_date=~/^#/
+          date = match_date
+        else
+          date=DateTime.parse(match_date.rstrip)
+        end
+      rescue ArgumentError
+        if (match_date=~/^0000/)
+          date=match_date
+        else
+          date=Date.new(match_date.to_i)
+        end
+      end
+      book.date=date
+      @books << book
+    end
+    @books.each do |book|
+      book.chapters = []
+      content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
+      content.each_with_index do |l, index|
+        # beginning of book
+        if (l=~/^\s*Video:.*$/) && (content[index-9].chomp =~ /Chapter[s]*$/ ||
+            content[index-10].chomp =~ /Chapter[s]*$/ ||
+            content[index-11].chomp =~ /Chapter[s]*$/ ||
+            content[index-12].chomp =~ /Chapter[s]*$/)
+          # log_chapter_parsing(content, index, true)
+          if index==12
+            book.book_title = content[index-13]
             #     summary missing
-            book.dates = content[index-12]
-            book.language = content[index-11]
-            book.chapters = content[index-10]
-            book.pubdate = content[index-9]
+            book.dates = content[index-11]
+            book.language = content[index-10]
+            book.total_chapters = content[index-9]
+            book.pubdate = content[index-8]
+            #     comments missing
+          end
+          if index==13
+            book.book_title = content[index-13]
+            book.summary = content[index-12]
+            book.dates = content[index-11]
+            book.language = content[index-10]
+            book.total_chapters = content[index-9]
+            book.pubdate = content[index-8]
             #     comments missing
           end
           if index==14
@@ -67,68 +156,64 @@ class Osho < Thor
             book.summary = content[index-13]
             book.dates = content[index-12]
             book.language = content[index-11]
-            book.chapters = content[index-10]
+            book.total_chapters = content[index-10]
             book.pubdate = content[index-9]
-            #     comments missing
+            book.comments = content[index-8]
           end
-          if index==15
-            book.book_title = content[index-15]
-            book.summary = content[index-14]
-            book.dates = content[index-13]
-            book.language = content[index-12]
-            book.chapters = content[index-11]
-            book.pubdate = content[index-10]
-            book.comments = content[index-9]
+          chapter = OpenStruct.new
+          chapter.book = book
+          book.chapters << chapter
+          chapter.book_title2 = content[index-8]
+          chapter.number = content[index-7]
+          chapter.title = content[index-6]
+          chapter.date = content[index-5]
+          chapter.archive_code = content[index-4]
+          chapter.short_title = content[index-3]
+          chapter.audio = content[index-2]
+          chapter.video = content[index-1]
+          chapter.video = content[index]
+          if content[index+1] =~ /^\s*Length:.*$/
+            chapter.lenght = content[index+1]
           end
-          book_title2 = content[index-8]
-          chapter_number = content[index-7]
-          chapter_title = content[index-6]
-          chapter_date = content[index-5]
-          archive_code = content[index-4]
-          short_title =  content[index-3]
-          audio = content[index-2]
-          video = content[index-1]
-          video = content[index]
-          #          x=index-15
-          #          case x
-          #          when -1
-          #            sleep 1
-          #          when -2
-          #            sleep 2
-          #          when -3
-          #            sleep 5
-          #          when x < -3
-          #            sleep 100
-          #          end
+          # chapters in a book
+          if (l=~/^\s*Video:.*$/) && (content[index-9] !~ /^Chapter/ && content[index-10] !~ /^Chapter/)
+            # log_chapter_parsing(content, index, false)
+          end
         end
-        if (l=~/^\s*Length:.*$/) && (content[index-10] !~ /^Chapter/ && content[index-11] !~ /^Chapter/)
-          # log_chapter_parsing(content, index, false)
-        end
+      end
+    end
+    @books.each do |book|
+      if book.chapters.size == 0
+        # content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
+        # content.each_with_index do |l, index|
+        # binding.pry if (l=~/^\s*Video:.*$/)
+        # puts "-----------------> #{book.name}"
       end
     end
     # tp(@books, :name, :date, :category, :content)
   end
 
   desc "search SOMETHING CONTEXT", "free text search osho"
-  method_option :context, type: :numeric, desc:"num of trailing n succeding context", default:0, aliases:"-C"
-  method_option :sortasc, type: :boolean, default: false, desc:"sort result in order", aliases:"-a"
+  method_option :context, type: :numeric, desc: "num of trailing n succeding context", default: 0, aliases: "-C"
+  method_option :sortasc, type: :boolean, default: false, desc: "sort result in order", aliases: "-a"
+
   def search(something)
     parse
 
-    @books_without_date, @books = @books.partition{|b|b.date.is_a?String}
-    options[:sortasc] ? @books.sort_by!{|b|b.date} : @books.sort_by!{|b|b.date}.reverse!
-    @books_without_date.sort_by! {|b| b.date}
+    @books_without_date, @books = @books.partition { |b| b.date.is_a? String }
+    options[:sortasc] ? @books.sort_by! { |b| b.date } : @books.sort_by! { |b| b.date }.reverse!
+    @books_without_date.sort_by! { |b| b.date }
 
     @books_without_date.each do |b|
-      find_it(b,something)
+      find_it(b, something)
     end
     @books.each do |b|
-      find_it(b,something)
+      find_it(b, something)
     end
   end
 
   private
-  def find_it(b,something)
+  def find_it(b, something)
     co=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
     co.each_with_index do |l, index|
       if l=~ /#{something}/i
@@ -172,4 +257,5 @@ class Osho < Thor
     @log.debug "\n"
   end
 end
+
 Osho.start(ARGV)
