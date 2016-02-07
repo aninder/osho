@@ -6,7 +6,7 @@ require 'thor'
 require 'logger'
 
 module Kernel
-  def try method, str
+  def try(method, str)
     if self.is_a? Date
       send(method, str)
     else
@@ -24,7 +24,6 @@ class Osho < Thor
   end
 
   desc "parse", "parse discources"
-
   def parse2
     @books=[];
     path=File.expand_path("~/Documents/Osho/files")+"/"
@@ -66,10 +65,10 @@ class Osho < Thor
       content=book.content.split(/\n|\. /).delete_if { |d| d=~/^\s*$/ }
       content.each do |l|
         if l =~ /^\*\*\*/
-          puts "skipping         #{l}"
+          @log.debug "skipping                  #{l}"
           next
         else
-          _find(l, book)
+          _find(l.chomp, book)
         end
       end
     end
@@ -77,52 +76,35 @@ class Osho < Thor
 
   desc "", ""
   def _find(line, orgbook)
-    # binding.pry if line.include? "because your sister is pregnant"
     line2=line.gsub(/([a-zA-Z])(?:\x85|\x97)([a-zA-Z])/, '\1 -- \2')
-    line2 = line2.split(/\.*\?+[\S]+[0-9]{1,2}$|\.$|\?|\?\.$/)[0]
+    line2 = line2.split(/\.*(?:\x85|\x97|\xA0)+[\S]+[0-9]{1,2}$|(?:\x85|\x97|\xA0)\.$|\.$|(?:\x85|\x97|\xA0)/)[0]
     @books_real.each do |b|
-      # puts "checking book --> #{b.name}"
       content2=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
       content2.each do |l|
-        if l.chomp.upcase.include? line2.chomp.upcase
-          puts "#{orgbook.name}  #{line.chomp.co_bg_brown.co_fg_blue} -- line_found in #{b.name.co_fg_magenta} matched line #{l.chomp.co_bg_gray.co_fg_blue}"
-          puts "===="
+        if l.chomp.upcase.include? line2.upcase
+          @log.debug "#{orgbook.name}  -- line_found in #{b.name.co_fg_magenta}"
+          @log.debug "#{line.co_bg_gray.co_fg_black} "
+          @log.debug "matched line #{l.chomp.gsub(line2,line2.co_bg_gray.co_fg_black)}"
+          @log.debug "===="
+          @log.debug "===="
+          @log.debug "===="
+          # move the book in which the line was found to the top for faster search
+          bb = @books_real.delete(b)
+          @books_real.unshift(bb)
           return
         end
       end
     end
-    puts "line not found #{line.co_fg_red}"
-    puts "line not found #{line2.co_fg_red}"
-    puts "===="
+    @log.debug "line not found #{line.co_fg_red}"
+    @log.debug "line not found #{line2.co_fg_red}"
+    @log.debug "===="
   end
 
   desc "parse", "parse discources"
 
   def parse
     @books=[];
-    path=File.expand_path("~/Documents/Osho/files")+"/"
-    Dir["#{path}**/*.txt"].each do |f|
-      content=File.read(f).force_encoding("iso-8859-1")
-      f = f.partition(path)[2]
-      f.match(/^([0-9]\. )([a-zA-Z]+)\/(.*?)- (.*)/)
-      match_date = $3
-      book = OpenStruct.new(category: $2, name: $4.sub(/\.txt/, ""), content: content)
-      begin
-        if match_date=~/^#/
-          date = match_date
-        else
-          date=DateTime.parse(match_date.rstrip)
-        end
-      rescue ArgumentError
-        if (match_date=~/^0000/)
-          date=match_date
-        else
-          date=Date.new(match_date.to_i)
-        end
-      end
-      book.date=date
-      @books << book
-    end
+    load_parse_books
     @books.each do |book|
       book.chapters = []
       content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
@@ -187,7 +169,7 @@ class Osho < Thor
         # content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
         # content.each_with_index do |l, index|
         # binding.pry if (l=~/^\s*Video:.*$/)
-        # puts "-----------------> #{book.name}"
+        # @log.debug "-----------------> #{book.name}"
       end
     end
     # tp(@books, :name, :date, :category, :content)
@@ -213,11 +195,37 @@ class Osho < Thor
   end
 
   private
+  def load_parse_books
+    path=File.expand_path("~/Documents/Osho/files")+"/"
+    Dir["#{path}**/*.txt"].each do |f|
+      content=File.read(f).force_encoding("iso-8859-1")
+      f = f.partition(path)[2]
+      f.match(/^([0-9]\. )([a-zA-Z]+)\/(.*?)- (.*)/)
+      match_date = $3
+      book = OpenStruct.new(category: $2, name: $4.sub(/\.txt/, ""), content: content)
+      begin
+        if match_date=~/^#/
+          date = match_date
+        else
+          date=DateTime.parse(match_date.rstrip)
+        end
+      rescue ArgumentError
+        if (match_date=~/^0000/)
+          date=match_date
+        else
+          date=Date.new(match_date.to_i)
+        end
+      end
+      book.date=date
+      @books << book
+    end
+  end
+
   def find_it(b, something)
     co=b.content.split("\n").delete_if { |d| d=~/^\s*$/ }
     co.each_with_index do |l, index|
       if l=~ /#{something}/i
-        puts("#{b.name.purple} #{b.date.try(:strftime, "%B %d, %Y").gray}");
+        @log.info("#{b.name.purple} #{b.date.try(:strftime, "%B %d, %Y").gray}");
         trailing=""
         (1..options[:context]).reverse_each do |y|
           trailing+=co[index-y]
@@ -229,8 +237,8 @@ class Osho < Thor
           succeeding+=co[index+y] if co[index+y]
           succeeding+="\n"
         end
-        puts("#{(trailing+(l)+succeeding).gsub(/(#{something})/i, '\1'.redish)}")
-        puts "\n"
+        @log.info("#{(trailing+(l)+succeeding).gsub(/(#{something})/i, '\1'.redish)}")
+        @log.info "\n"
       end
     end
   end
