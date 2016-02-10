@@ -149,16 +149,16 @@ class Osho < Thor
     @books=[];
     load_books
     createDB
-    puts @xx.sort.uniq
     @books.each do |book|
       # if book.chapters.size == 0
-        # content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
-        # content.each_with_index do |l, index|
-        # binding.pry if (l=~/^\s*Video:.*$/)
-        # @log.debug "-----------------> #{book.name}"
-      end
+      # content=book.content.split("\n").delete_if { |d| d=~/^\s*$/ }
+      # content.each_with_index do |l, index|
+      # binding.pry if (l=~/^\s*Video:.*$/)
+      # @log.debug "-----------------> #{book.name}"
     end
-    # tp(@books, :name, :date, :category, :content)
+  end
+
+  # tp(@books, :name, :date, :category, :content)
 
   desc "search SOMETHING CONTEXT", "free text search osho"
   method_option :context, type: :numeric, desc: "num of trailing n succeding context", default: 0, aliases: "-C"
@@ -216,36 +216,52 @@ class Osho < Thor
             content[index-11].chomp =~ /Chapter[s]*$/ ||
             content[index-12].chomp =~ /Chapter[s]*$/)
 
-          puts " #{index} #{content[0]} "
-          @xx ||=[]
-          @xx<<index
-
+          if index==9
+            book.book_title = content[index-9]
+            book.summary = content[index-8]
+            book.dates = content[index-7]
+            book.total_chapters = content[index-5]
+            book.pubdate = content[index-4]
+            book.comments = content[index-3]
+            book.language = "Miscellaneous"
+          end
           if index==12
             book.book_title = content[index-12]
             #     summary missing
             book.dates = content[index-11]
             if content[index-10] =~ /Darshan Diary/
+              #     summary missing
               book.language = "#{content[index-10]} series"
               book.summary = content[index-10]
               book.total_chapters = content[index-9]
               book.pubdate = content[index-8]
               #     comments missing
             else
-            book.language = content[index-10]
-            book.total_chapters = content[index-9]
-            book.pubdate = content[index-8]
-            #     comments missing
+              if content[index-4] =~ /Chapter title/
+                book.summary = content[index-7]
+              end
+              book.language = content[index-10]
+              book.total_chapters = content[index-9]
+              book.pubdate = content[index-8]
+              #     comments missing
             end
           end
           if index==13
             book.book_title = content[index-13]
             if content[index-12] =~ /Talks given from/
-            # summary missing
-            book.dates = content[index-12]
-            book.language = content[index-11]
-            book.total_chapters = content[index-10]
-            book.pubdate = content[index-9]
-            book.comments = content[index-8]
+              # summary missing
+              book.dates = content[index-12]
+              if content[index-11] =~ /Darshan Diary/i
+                book.language = "#{content[index-11]} series"
+                book.total_chapters = content[index-10]
+                book.pubdate = content[index-9]
+                book.comments = content[index-8]
+              else
+                book.language = content[index-11]
+                book.total_chapters = content[index-10]
+                book.pubdate = content[index-9]
+                book.comments = content[index-8]
+              end
             else
               book.summary= content[index-12]
               book.dates = content[index-11]
@@ -257,13 +273,13 @@ class Osho < Thor
           end
           if index==14
             book.book_title = content[index-14]
-            if content[index-12] =~ /Talks given from/
-            book.summary = content[index-13]
-            book.dates = content[index-12]
-            book.language = content[index-11]
-            book.total_chapters = content[index-10]
-            book.pubdate = content[index-9]
-            book.comments = content[index-8]
+            if content[index-12] =~ /Talks given from/ || content[index-12] =~ /talks from the early days/
+              book.summary = content[index-13]
+              book.dates = content[index-12]
+              book.language = content[index-11]
+              book.total_chapters = content[index-10]
+              book.pubdate = content[index-9]
+              book.comments = content[index-8]
             else
               #summary missing
               # 2 comments
@@ -299,46 +315,70 @@ class Osho < Thor
             book.comments+= '\n'+content[index-9]
             book.comments = '\n'+content[index-8]
           end
-          binding.pry if book.dates !~ /Talks given from/
-          binding.pry if book.language !~ /series/
+          binding.pry if book.dates !~ /Talks given from/ && book.dates !~ /talks from the early days/
+          binding.pry if book.language !~ /series/ && book.language !~ /hindi/i && book.language !~ /Miscellaneous/i
           binding.pry if book.pubdate !~ /published/
           binding.pry if book.total_chapters !~ /Chapter/i
           # binding.pry if book.comments !~ /Chapter/
 
+          # log_chapter_parsing(content, index, true)
+        end
+        # chapters in a book
+        if (l=~/^\s*Video/i) && (content[index-9] !~ /^Chapter/ && content[index-10] !~ /^Chapter/)
           chapter = OpenStruct.new
           chapter.book = book
           book.chapters << chapter
-          chapter.book_title2 = content[index-7]
-          chapter.number = content[index-6]
-          chapter.title = content[index-5]
-          chapter.date = content[index-4]
-          chapter.archive_code = content[index-3]
-          chapter.short_title = content[index-2]
-          chapter.audio = content[index-1]
-          chapter.video = content[index]
-          if content[index+1] =~ /^\s*Length:.*$/
-            chapter.length = content[index+1]
-          end
-          log_chapter_parsing(content, index, true, chapter)
-        end
-          # chapters in a book
-          if (l=~/Video/i) && (content[index-9] !~ /^Chapter/ && content[index-10] !~ /^Chapter/)
-            chapter = OpenStruct.new
-            chapter.book = book
-            book.chapters << chapter
+          if index ==5
+            chapter.number = content[index-4]
+            chapter.title = content[index-3]
+            chapter.date = "Date Unknown"
+            chapter.archive_code = "no archive code"
+            chapter.short_title = content[index-2]
+            chapter.audio = content[index-1]
+            chapter.video = content[index]
+          elsif index == 9
+            chapter.title = content[index-6]
+            chapter.number = content[index-5]
+            chapter.date = content[index-7]
+            chapter.archive_code = "no archive code"
+            chapter.short_title = content[index-2]
+            chapter.audio = content[index-1]
+            chapter.video = content[index]
+          elsif content[index-4] =~ /Chapter title/
             chapter.book_title2 = content[index-7]
-            chapter.number = content[index-6]
+            chapter.number = content[index-5]
+            chapter.title = content[index-4]
+            chapter.date = "Date Unknown"
+            chapter.archive_code = content[index-3]
+            chapter.short_title = content[index-2]
+            chapter.audio = content[index-1]
+            chapter.video = content[index]
+          else
+            chapter.book_title2 = content[index-7]
+            if content[index-6] =~ /Wisdom of Folly/
+              chapter.number = "Chapter #0"
+            else
+              chapter.number = content[index-6]
+            end
             chapter.title = content[index-5]
             chapter.date = content[index-4]
             chapter.archive_code = content[index-3]
             chapter.short_title = content[index-2]
             chapter.audio = content[index-1]
             chapter.video = content[index]
-            if content[index+1] =~ /^\s*Length:.*$/
-              chapter.length = content[index+1]
-            end
-            log_chapter_parsing(content, index, false, chapter)
           end
+          if content[index+1] =~ /^\s*Length:.*$/
+            chapter.length = content[index+1]
+          end
+          @log.debug "#{chapter.title}"
+          # sleep 1
+          binding.pry if chapter.number !~ /(Chapter|Appendix|Series)/
+          binding.pry if chapter.date !~ /(pm|am|January|February|May|June|July|October|September|November|Date [uU]nk[n]*own|Mt. Abu|1972|1984)/
+          binding.pry if chapter.archive_code !~ /(archive|1971)/i
+          binding.pry if chapter.short_title !~ /shorttitle/i
+          binding.pry if chapter.audio !~ /audio/i
+          # log_chapter_parsing(content, index, false, chapter)
+        end
       end
     end
   end
@@ -365,36 +405,30 @@ class Osho < Thor
     end
   end
 
-  def log_chapter_parsing(content, index, header, chapter)
-    # if header
-    #   @log.debug "#{chapter.title}"
-    #   @log.debug "#{chapter.book.book_title}"
-      # @log.debug "#{chapter.number}"
-      # @log.debug content[index-12]
-      # @log.debug content[index-11]
-      # @log.debug content[index-10]
-      # @log.debug content[index-9]
-      # @log.debug "#{content[index-15].chomp} --- #{(index-15).to_s.co_bg_red}"
-      # @log.debug "#{content[index-14].chomp} --- #{index-14}"
-      # @log.debug content[index-13]
-      # @log.debug content[index-12]
-      # @log.debug content[index-11]
-      # @log.debug content[index-10]
-      # @log.debug content[index-9]
-    # end
-    # @log.debug "#{content[index-8].chomp} #{index-8} "
-    # @log.debug content[index-7]
-    # @log.debug content[index-6]
-    # @log.debug content[index-5]
-    # @log.debug content[index-4]
-    # @log.debug content[index-3]
-    # @log.debug content[index-2]
-    # @log.debug content[index-1]
-    # @log.debug content[index]
-    # @log.debug content[index+1] if content[index+1] =~ /^\s*Length:.*$/
-    # @log.debug "\n"
+  def log_chapter_parsing(content, index, header, chapter=nil)
+    if header
+      @log.debug "#{content[index-15].chomp} --- #{(index-15).to_s.co_bg_red}"
+      @log.debug "#{content[index-14].chomp} --- #{index-14}"
+      @log.debug content[index-13]
+      @log.debug content[index-12]
+      @log.debug content[index-11]
+      @log.debug content[index-10]
+      @log.debug content[index-9]
+    end
+    @log.debug "#{content[index-8].chomp} #{index-8} "
+    @log.debug content[index-7]
+    @log.debug content[index-6]
+    @log.debug content[index-5]
+    @log.debug content[index-4]
+    @log.debug content[index-3]
+    @log.debug content[index-2]
+    @log.debug content[index-1]
+    @log.debug content[index]
+    @log.debug content[index+1] if content[index+1] =~ /^\s*Length:.*$/
+    @log.debug "\n"
     # sleep 0.01
   end
+
 end
 
 Osho.start(ARGV)
